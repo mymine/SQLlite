@@ -21,6 +21,7 @@ class SqliteEngine {
 
     val isOpen: Boolean get() = db?.isOpen == true
 
+    @Synchronized
     fun open(filePath: String, readOnly: Boolean): Result<Unit> = runCatching {
         close()
         val flags = if (readOnly) {
@@ -35,6 +36,7 @@ class SqliteEngine {
         this.readOnly = readOnly
     }
 
+    @Synchronized
     fun close() {
         runCatching { db?.close() }
         db = null
@@ -46,6 +48,7 @@ class SqliteEngine {
 
     // ---------------------------------------------------------------- 查询
 
+    @Synchronized
     fun query(sql: String, args: List<Any?> = emptyList()): QueryResult {
         val database = requireDb()
         val start = System.currentTimeMillis()
@@ -63,6 +66,7 @@ class SqliteEngine {
     }
 
     /** 执行非查询语句，返回受影响行数（尽力而为） */
+    @Synchronized
     fun exec(sql: String): Long {
         val database = requireDb()
         database.execSQL(sql)
@@ -74,6 +78,7 @@ class SqliteEngine {
     }
 
     /** 执行多条语句（按分号切分后逐条执行），返回执行条数 */
+    @Synchronized
     fun execScript(statements: List<String>): Int {
         val database = requireDb()
         var count = 0
@@ -102,6 +107,7 @@ class SqliteEngine {
 
     // ------------------------------------------------------------ 元数据
 
+    @Synchronized
     fun objects(type: String): List<DbObject> =
         query(
             "SELECT name, type, tbl_name, sql FROM sqlite_master " +
@@ -111,11 +117,16 @@ class SqliteEngine {
             DbObject(it[0] ?: "", it[1] ?: type, it[2] ?: "", it[3])
         }
 
+    @Synchronized
     fun tables(): List<DbObject> = objects("table")
+    @Synchronized
     fun views(): List<DbObject> = objects("view")
+    @Synchronized
     fun indexes(): List<DbObject> = objects("index")
+    @Synchronized
     fun triggers(): List<DbObject> = objects("trigger")
 
+    @Synchronized
     fun tableNames(includeViews: Boolean = false): List<String> {
         val list = ArrayList<String>()
         tables().forEach { list.add(it.name) }
@@ -123,6 +134,7 @@ class SqliteEngine {
         return list
     }
 
+    @Synchronized
     fun columns(table: String): List<ColumnInfo> =
         query("PRAGMA table_info(${quoteIdent(table)})").rows.map { row ->
             ColumnInfo(
@@ -135,19 +147,23 @@ class SqliteEngine {
             )
         }
 
+    @Synchronized
     fun createSql(table: String): String? =
         query(
             "SELECT sql FROM sqlite_master WHERE name=? AND type IN ('table','view')",
             listOf(table),
         ).rows.firstOrNull()?.firstOrNull()
 
+    @Synchronized
     fun foreignKeys(table: String): QueryResult =
         query("PRAGMA foreign_key_list(${quoteIdent(table)})")
 
+    @Synchronized
     fun rowCount(table: String): Long =
         query("SELECT COUNT(*) FROM ${quoteIdent(table)}").rows.firstOrNull()?.firstOrNull()
             ?.toLongOrNull() ?: 0L
 
+    @Synchronized
     fun tableOverviews(): List<TableOverview> {
         val result = ArrayList<TableOverview>()
         tables().forEach { t ->
@@ -163,6 +179,7 @@ class SqliteEngine {
 
     // ------------------------------------------------------------ 数据页
 
+    @Synchronized
     fun pageRows(
         table: String,
         limit: Int,
@@ -178,6 +195,7 @@ class SqliteEngine {
         return query("SELECT * FROM ${quoteIdent(table)}$order LIMIT ? OFFSET ?", listOf(limit, offset))
     }
 
+    @Synchronized
     fun insert(table: String, values: Map<String, Any?>): Long {
         val database = requireDb()
         val cols = values.keys.toList()
@@ -192,6 +210,7 @@ class SqliteEngine {
         }
     }
 
+    @Synchronized
     fun update(table: String, values: Map<String, Any?>, where: String, whereArgs: List<Any?>): Int {
         val database = requireDb()
         val setClause = values.keys.joinToString(", ") { "${quoteIdent(it)}=?" }
@@ -207,6 +226,7 @@ class SqliteEngine {
         }
     }
 
+    @Synchronized
     fun <T> transaction(block: () -> T): T {
         val database = requireDb()
         database.beginTransaction()
@@ -219,6 +239,7 @@ class SqliteEngine {
         }
     }
 
+    @Synchronized
     fun delete(table: String, where: String, whereArgs: List<Any?>): Int {
         val database = requireDb()
         val sql = "DELETE FROM ${quoteIdent(table)}" + if (where.isBlank()) "" else " WHERE $where"
@@ -246,6 +267,7 @@ class SqliteEngine {
 
     // ------------------------------------------------------------ 结构变更
 
+    @Synchronized
     fun createTable(table: String, columns: List<ColumnSpec>) {
         require(columns.isNotEmpty()) { "至少需要一列" }
         val defs = columns.joinToString(", ") { c ->
@@ -260,14 +282,17 @@ class SqliteEngine {
         requireDb().execSQL("CREATE TABLE ${quoteIdent(table)} ($defs)")
     }
 
+    @Synchronized
     fun dropTable(table: String) {
         requireDb().execSQL("DROP TABLE IF EXISTS ${quoteIdent(table)}")
     }
 
+    @Synchronized
     fun renameTable(oldName: String, newName: String) {
         requireDb().execSQL("ALTER TABLE ${quoteIdent(oldName)} RENAME TO ${quoteIdent(newName)}")
     }
 
+    @Synchronized
     fun addColumn(table: String, column: ColumnSpec) {
         val sb = StringBuilder("ALTER TABLE ${quoteIdent(table)} ADD COLUMN ${quoteIdent(column.name)}")
         if (column.type.isNotBlank()) sb.append(" ").append(column.type)
@@ -277,14 +302,17 @@ class SqliteEngine {
         requireDb().execSQL(sb.toString())
     }
 
+    @Synchronized
     fun dropColumn(table: String, column: String) {
         requireDb().execSQL("ALTER TABLE ${quoteIdent(table)} DROP COLUMN ${quoteIdent(column)}")
     }
 
+    @Synchronized
     fun vacuum() {
         requireDb().execSQL("VACUUM")
     }
 
+    @Synchronized
     fun compactFile(target: File) {
         val database = requireDb()
         database.execSQL("VACUUM INTO ?", arrayOf(target.absolutePath))

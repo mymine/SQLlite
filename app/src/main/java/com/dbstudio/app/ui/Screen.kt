@@ -27,6 +27,11 @@ sealed interface Screen {
         override val tabIndex = 4
     }
 
+    /** MCP 服务设置（二级页） */
+    data object Mcp : Screen {
+        override val tabIndex = 4
+    }
+
     /** 表详情（结构 + 数据预览） */
     data class TableDetail(val table: String) : Screen {
         override val tabIndex = 0

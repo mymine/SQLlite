@@ -3,6 +3,6 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose' version '2.2.10' apply false
 }
 
-// subprojects {
-    // layout.buildDirectory.set(new File("/opt/grbuild/${project.name}"))
-// }
+subprojects {
+    layout.buildDirectory.set(new File("/opt/grbuild/${project.name}"))
+}

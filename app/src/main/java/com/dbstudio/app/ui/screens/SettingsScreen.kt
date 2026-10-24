@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -20,10 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dbstudio.app.data.AppPrefs
+import com.dbstudio.app.mcp.McpPrefs
+import com.dbstudio.app.ui.Screen
 import com.dbstudio.app.ui.AppNav
 import com.dbstudio.app.ui.components.ScreenTitle
 import com.dbstudio.app.ui.components.SectionCard
@@ -73,10 +79,38 @@ fun SettingsScreen(nav: AppNav) {
                 )
             }
             Spacer(Modifier.height(12.dp))
+            SectionCard(title = "MCP 服务") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { nav.push(Screen.Mcp) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("MCP 服务器", fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            "通过局域网让大模型操控数据库（网口 / 端口 / 令牌）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (McpPrefs.runningPort > 0) Color(0xFF42D392)
+                                else MaterialTheme.colorScheme.outline,
+                            ),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("进入", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             SectionCard(title = "关于") {
                 Text("SQLlite", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("版本 1.0.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("版本 1.4.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
                 Text("基于 Jetpack Compose 构建的 SQLite 数据库管理工具", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
