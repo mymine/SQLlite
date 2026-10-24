@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.TableChart
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,11 +29,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dbstudio.app.data.AppPrefs
+import com.dbstudio.app.mcp.McpUiBridge
 import com.dbstudio.app.ui.components.GlassBottomBar
 import com.dbstudio.app.ui.components.GlassTabItem
 import com.dbstudio.app.ui.screens.DataScreen
 import com.dbstudio.app.ui.screens.DatabasesScreen
 import com.dbstudio.app.ui.screens.DiffScreen
+import com.dbstudio.app.ui.screens.McpScreen
 import com.dbstudio.app.ui.screens.SettingsScreen
 import com.dbstudio.app.ui.screens.SqlScreen
 import com.dbstudio.app.ui.screens.TableDetailScreen
@@ -67,6 +70,8 @@ fun AppRoot(nav: AppNav = remember { AppNav() }) {
 
     BackHandler(enabled = nav.stack.size > 1) { nav.back() }
 
+    LaunchedEffect(current) { McpUiBridge.currentScreen = screenKey(current) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -90,6 +95,7 @@ fun AppRoot(nav: AppNav = remember { AppNav() }) {
                     is Screen.Diff -> DiffScreen(nav)
                     is Screen.Sql -> SqlScreen(nav)
                     is Screen.Settings -> SettingsScreen(nav)
+                    is Screen.Mcp -> McpScreen(nav)
                     is Screen.TableDetail -> TableDetailScreen(nav, current.table)
                 }
             }
@@ -104,6 +110,16 @@ fun AppRoot(nav: AppNav = remember { AppNav() }) {
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
         )
     }
+}
+
+private fun screenKey(screen: Screen): String = when (screen) {
+    is Screen.Databases -> "databases"
+    is Screen.Data -> "data"
+    is Screen.Diff -> "diff"
+    is Screen.Sql -> "sql"
+    is Screen.Settings -> "settings"
+    is Screen.Mcp -> "mcp"
+    is Screen.TableDetail -> "table_detail"
 }
 
 @Composable

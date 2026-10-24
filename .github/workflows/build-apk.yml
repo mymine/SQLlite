@@ -71,3 +71,4 @@ jobs:
           path: |
             ./**/*.apk
             ./app/*.apk
+            /opt/grbuild/**/*.apk

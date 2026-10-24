@@ -4,7 +4,7 @@
 
 - **应用名**：SQLlite
 - **包名**：`com.dbstudio.app`
-- **当前版本**：1.3.0（versionCode 4）
+- **当前版本**：1.4.1（versionCode 6）
 - **运行环境**：Android 8.0+（minSdk 26），编译 SDK 37
 
 ---
@@ -43,6 +43,12 @@
 - **导入**：CSV、JSON（自动识别并推断列）
 - **整表 / 整库脚本导出**：仅表结构（`schema.sql`）或 表结构 + 数据（`dump.sql`）
 - **SQL 脚本导入**：一键执行建表 + 插数据脚本
+
+### MCP 服务（1.4.0 新增）
+- 应用内置 **MCP（Model Context Protocol）服务器**，通过 Streamable HTTP 把全部功能暴露给大模型
+- 可配置 **监听网口**（全部网口 / 仅本机）、**端口**（默认 8765）、**是否启用 Bearer 令牌认证**
+- 共 **34 个工具**：数据库打开/新建/关闭、表结构与 DDL、数据增删改查、SQL 脚本、CSV/TXT/JSON/SQL 导入导出、跨库结构与数据对比、文件浏览、界面跳转与偏好设置
+- 前台服务常驻运行，通知栏显示监听地址；设置页可查看实时请求日志、工具清单与客户端配置
 
 ### 界面
 - **悬浮玻璃底栏**（Haze 实时背景模糊 + 半透明胶囊 + 高光边框），随明暗主题自适应
@@ -96,6 +102,14 @@ DBStudio/
 │       │   │   └── diff/
 │       │   │       ├── DiffModels.kt        # 差异模型
 │       │   │       └── Differs.kt           # 结构对比 / 数据对比
+│       │   ├── mcp/                       # MCP 服务端
+│       │   │   ├── McpServer.kt             # 轻量 HTTP 服务器（ServerSocket）
+│       │   │   ├── McpProtocol.kt           # JSON-RPC 2.0 / initialize / tools
+│       │   │   ├── McpTools.kt              # 34 个工具的实现
+│       │   │   ├── McpPrefs.kt              # 网口 / 端口 / 令牌配置
+│       │   │   ├── McpService.kt            # 前台服务
+│       │   │   ├── McpUiBridge.kt           # MCP → 界面导航桥
+│       │   │   └── McpLog.kt                # 请求日志
 │       │   ├── ui/
 │       │   │   ├── AppRoot.kt               # 根布局（玻璃底栏 + 页面调度）
 │       │   │   ├── Screen.kt                # 页面定义与导航栈
@@ -110,7 +124,8 @@ DBStudio/
 │       │   │   │   ├── DiffScreen.kt        # 对比页
 │       │   │   │   ├── SqlScreen.kt         # SQL 控制台
 │       │   │   │   ├── TableDetailScreen.kt # 表详情
-│       │   │   │   └── SettingsScreen.kt    # 设置页
+│       │   │   │   ├── SettingsScreen.kt    # 设置页
+│       │   │   │   └── McpScreen.kt         # MCP 服务设置页
 │       │   │   └── theme/Theme.kt           # 配色与主题
 │       │   └── util/DbFileHelper.kt         # SAF 与本地文件转换
 │       └── res/                             # 图标 / 主题 / 字符串
@@ -149,6 +164,19 @@ release 签名信息（演示用）：keystore `app/dbstudio.jks`，别名 / 口
 1. **访问 SD 卡目录**：首次点击「浏览存储」会跳转设置页，请授予「所有文件访问（MANAGE_EXTERNAL_STORAGE）」权限，之后即可浏览 `/storage/emulated/0`。若不想授权，也可继续使用系统文件选择器。
 2. **编辑外部文件**：通过系统选择器打开的文件会先复制为本地工作副本，「写回原件」可将改动保存回原文件。
 3. **敏感操作**：删除表 / 删除列 / 批量删除行均不可撤销，界面均有二次确认。
+4. **MCP 连接**：设置 → MCP 服务，开启后通知栏会显示监听地址。在 Claude Desktop、Cherry Studio 等客户端中添加：
+   ```json
+   {
+     "mcpServers": {
+       "sqllite": {
+         "type": "http",
+         "url": "http://<手机IP>:8765/mcp",
+         "headers": { "Authorization": "Bearer <令牌>" }
+       }
+     }
+   }
+   ```
+   局域网访问需保证手机与电脑在同一网络，且防火墙允许该端口。
 
 ---
 
@@ -158,8 +186,10 @@ release 签名信息（演示用）：keystore `app/dbstudio.jks`，别名 / 口
 | --- | --- |
 | 1.0.0 | 首个版本：数据库管理、数据浏览编辑、SQL 控制台、表/数据对比、玻璃底栏 |
 | 1.1.0 | 首页美化；内置存储浏览器（修复 SD 卡访问）；表/数据搜索；支持两库对比 |
-| 1.2.0 | 适配状态栏与导航栏；数据页对齐修复；表管理（建/删/改表、增删列）|
+| 1.2.0 | 适配状态栏与导航栏；数据页对齐修复；表管理（建/删/改表、增删列）；改名 SQLlite |
 | 1.3.0 | 表结构 / 表+数据 的 SQL 导出导入；表与数据行的多选（全选 / 反选 / 批量操作） |
+| 1.4.0 | 内置 MCP 服务器：34 个工具覆盖全部功能，支持网口 / 端口 / 令牌认证配置与前台常驻 |
+| 1.4.1 | 修复 MCP 无法关闭：开关切换即时生效，通知栏新增「停止服务」按钮 |
 
 ---
 
