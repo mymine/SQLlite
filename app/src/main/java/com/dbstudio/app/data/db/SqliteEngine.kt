@@ -198,6 +198,15 @@ class SqliteEngine {
     @Synchronized
     fun insert(table: String, values: Map<String, Any?>): Long {
         val database = requireDb()
+        if (values.isEmpty()) {
+            // 没有任何列时使用 DEFAULT VALUES，让所有列的默认值/约束生效
+            database.execSQL("INSERT INTO ${quoteIdent(table)} DEFAULT VALUES")
+            return runCatching {
+                database.rawQuery("SELECT last_insert_rowid()", null).use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else 0L
+                }
+            }.getOrDefault(0L)
+        }
         val cols = values.keys.toList()
         val placeholders = cols.joinToString(", ") { "?" }
         val sql = "INSERT INTO ${quoteIdent(table)} (${cols.joinToString(", ") { quoteIdent(it) }}) VALUES ($placeholders)"

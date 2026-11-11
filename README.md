@@ -4,7 +4,7 @@
 
 - **应用名**：SQLlite
 - **包名**：`com.dbstudio.app`
-- **当前版本**：1.4.1（versionCode 6）
+- **当前版本**：1.4.2（versionCode 7）
 - **运行环境**：Android 8.0+（minSdk 26），编译 SDK 37
 
 ---
@@ -155,6 +155,8 @@ gradle :app:assembleRelease
 
 > 本项目的 `buildDir` 会被重定向到 `/opt/grbuild`（在 `build.gradle` 中配置），以规避某些环境下工作区文件系统随机写性能较差的问题。如不需要可自行移除该行。
 
+release 默认开启 **R8 代码压缩混淆** 与 **资源压缩**（`minifyEnabled true` + `shrinkResources true`）。
+
 release 签名信息（演示用）：keystore `app/dbstudio.jks`，别名 / 口令均为 `dbstudio`。**正式发布请替换为你自己的签名。**
 
 ---
@@ -190,6 +192,7 @@ release 签名信息（演示用）：keystore `app/dbstudio.jks`，别名 / 口
 | 1.3.0 | 表结构 / 表+数据 的 SQL 导出导入；表与数据行的多选（全选 / 反选 / 批量操作） |
 | 1.4.0 | 内置 MCP 服务器：34 个工具覆盖全部功能，支持网口 / 端口 / 令牌认证配置与前台常驻 |
 | 1.4.1 | 修复 MCP 无法关闭：开关切换即时生效，通知栏新增「停止服务」按钮 |
+| 1.4.2 | 修复新增/编辑数据报错（rowid 错位、空值覆盖 DEFAULT 触发 CHECK/NOT NULL）；表格隐藏内部 _rowid_ 列；release 开启 R8 混淆与资源压缩 |
 
 ---
 

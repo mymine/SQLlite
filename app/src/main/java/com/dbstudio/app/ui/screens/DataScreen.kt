@@ -135,7 +135,13 @@ fun DataScreen(nav: AppNav) {
                     }
                     args.add(PAGE_SIZE)
                     args.add(page * PAGE_SIZE)
-                    engine.query("SELECT rowid AS _rowid_, * FROM ${SqliteEngine.quoteIdent(t)}$where$order LIMIT ? OFFSET ?", args)
+                    val quoted = SqliteEngine.quoteIdent(t)
+                    runCatching {
+                        engine.query("SELECT rowid AS _rowid_, * FROM $quoted$where$order LIMIT ? OFFSET ?", args)
+                    }.getOrElse {
+                        // WITHOUT ROWID 表没有 rowid，回退为普通查询（此时代码中没有 _rowid_ 列）
+                        engine.query("SELECT * FROM $quoted$where$order LIMIT ? OFFSET ?", args)
+                    }
                 }
             }
             r.onSuccess { result = it; error = null }.onFailure { error = it.message }
@@ -314,11 +320,14 @@ fun DataScreen(nav: AppNav) {
     }
 
     editingRow?.let { row ->
+        val allColumns = result?.columns ?: emptyList()
+        val hasRowId = allColumns.firstOrNull() == "_rowid_"
         RowEditDialog(
             engine = engine,
             table = table ?: "",
-            columns = result?.columns ?: emptyList(),
-            row = row,
+            columns = if (hasRowId) allColumns.drop(1) else allColumns,
+            row = if (hasRowId) row.drop(1) else row,
+            rowId = if (hasRowId) row.firstOrNull() else null,
             onDismiss = { editingRow = null },
             onSaved = { editingRow = null; reload(); statusText = "已保存" },
             onDeleted = { editingRow = null; reload(); statusText = "已删除" },
@@ -431,7 +440,8 @@ private fun DataGrid(
     onRowLongClick: (List<String?>) -> Unit,
 ) {
     val hScroll = rememberScrollState()
-    val totalWidth: Dp = COL_WIDTH * result.columns.size + (if (selectionMode) 34.dp else 0.dp)
+    val visibleColumns = result.columns.filter { it != "_rowid_" }
+    val totalWidth: Dp = COL_WIDTH * visibleColumns.size + (if (selectionMode) 34.dp else 0.dp)
     Column(modifier = modifier.fillMaxSize().horizontalScroll(hScroll)) {
         Row(
             modifier = Modifier
@@ -440,7 +450,8 @@ private fun DataGrid(
                 .padding(vertical = 10.dp),
         ) {
             if (selectionMode) Spacer(Modifier.width(34.dp))
-            result.columns.forEach { col ->
+            result.columns.forEachIndexed { index, col ->
+                if (col == "_rowid_") return@forEachIndexed
                 Text(
                     col,
                     modifier = Modifier.width(COL_WIDTH).padding(horizontal = 10.dp).clickable { onHeaderClick(col) },
@@ -475,7 +486,8 @@ private fun DataGrid(
                             )
                         }
                     }
-                    row.forEach { cell ->
+                    row.forEachIndexed { index, cell ->
+                        if (result.columns.getOrNull(index) == "_rowid_") return@forEachIndexed
                         val isNull = cell == null
                         Text(
                             text = if (isNull) "NULL" else cell,
@@ -500,11 +512,12 @@ private fun RowEditDialog(
     table: String,
     columns: List<String>,
     row: List<String?>,
+    rowId: String?,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     onDeleted: () -> Unit,
 ) {
-    val isNew = row.isEmpty()
+    val isNew = rowId == null && row.isEmpty()
     val editable = columns.filter { it != "_rowid_" }
     var values by remember { mutableStateOf(editable.mapIndexed { i, _ -> row.getOrNull(i) ?: "" }) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -529,10 +542,28 @@ private fun RowEditDialog(
         confirmButton = {
             TextButton(onClick = {
                 runCatching {
-                    val map = LinkedHashMap<String, Any?>()
-                    editable.forEachIndexed { i, col -> map[col] = values.getOrNull(i)?.ifEmpty { null } }
-                    if (isNew) engine.insert(table, map)
-                    else engine.update(table, map, "rowid=?", listOf(row.getOrNull(0)))
+                    if (isNew) {
+                        // 新增：留空的列不写入，交给数据库 DEFAULT / NULL 处理，
+                        // 避免把 NOT NULL / CHECK 约束列覆盖成 NULL。
+                        val insertValues = LinkedHashMap<String, Any?>()
+                        editable.forEachIndexed { i, col ->
+                            val value = values.getOrNull(i).orEmpty()
+                            if (value.isNotEmpty()) insertValues[col] = value
+                        }
+                        engine.insert(table, insertValues)
+                    } else {
+                        // 编辑：只提交用户改动过的列，未改动的列（如带 CHECK 的 active）保持原值。
+                        val changed = LinkedHashMap<String, Any?>()
+                        editable.forEachIndexed { i, col ->
+                            val value = values.getOrNull(i).orEmpty()
+                            val old = row.getOrNull(i).orEmpty()
+                            if (value != old) changed[col] = value.ifEmpty { null }
+                        }
+                        if (changed.isNotEmpty()) {
+                            val id = rowId ?: throw IllegalStateException("无法定位该行：该表没有 rowid")
+                            engine.update(table, changed, "rowid=?", listOf(id))
+                        }
+                    }
                 }.onSuccess { onSaved() }.onFailure { error = it.message }
             }) { Text("保存") }
         },
@@ -540,8 +571,10 @@ private fun RowEditDialog(
             Row {
                 if (!isNew) {
                     TextButton(onClick = {
-                        runCatching { engine.delete(table, "rowid=?", listOf(row.getOrNull(0))) }
-                            .onSuccess { onDeleted() }.onFailure { error = it.message }
+                        runCatching {
+                            val id = rowId ?: throw IllegalStateException("无法定位该行：该表没有 rowid")
+                            engine.delete(table, "rowid=?", listOf(id))
+                        }.onSuccess { onDeleted() }.onFailure { error = it.message }
                     }) { Text("删除", color = MaterialTheme.colorScheme.error) }
                 }
                 TextButton(onClick = onDismiss) { Text("取消") }
@@ -550,18 +583,31 @@ private fun RowEditDialog(
     )
 }
 
-private fun buildExport(format: String, table: String, result: QueryResult): String = when (format.lowercase()) {
-    "json" -> JsonCodec.encodeRows(result.columns, result.rows)
-    "sql" -> buildString {
-        append("-- Export of $table\n")
-        result.rows.forEach { row ->
-            append("INSERT INTO ${SqliteEngine.quoteIdent(table)} (")
-            append(result.columns.joinToString(", ") { SqliteEngine.quoteIdent(it) })
-            append(") VALUES (")
-            append(row.joinToString(", ") { SqliteEngine.literal(it) })
-            append(");\n")
-        }
+private fun buildExport(format: String, table: String, result: QueryResult): String {
+    val rowIdIndex = result.columns.indexOf("_rowid_")
+    val columns = if (rowIdIndex >= 0) {
+        result.columns.filterIndexed { index, _ -> index != rowIdIndex }
+    } else {
+        result.columns
     }
-    "txt" -> CsvCodec.encode(result.columns, result.rows, '\t')
-    else -> CsvCodec.encode(result.columns, result.rows)
+    val rows = if (rowIdIndex >= 0) {
+        result.rows.map { row -> row.filterIndexed { index, _ -> index != rowIdIndex } }
+    } else {
+        result.rows
+    }
+    return when (format.lowercase()) {
+        "json" -> JsonCodec.encodeRows(columns, rows)
+        "sql" -> buildString {
+            append("-- Export of $table\n")
+            rows.forEach { row ->
+                append("INSERT INTO ${SqliteEngine.quoteIdent(table)} (")
+                append(columns.joinToString(", ") { SqliteEngine.quoteIdent(it) })
+                append(") VALUES (")
+                append(row.joinToString(", ") { SqliteEngine.literal(it) })
+                append(");\n")
+            }
+        }
+        "txt" -> CsvCodec.encode(columns, rows, '\t')
+        else -> CsvCodec.encode(columns, rows)
+    }
 }
